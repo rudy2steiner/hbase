@@ -20,14 +20,17 @@ package org.apache.hadoop.hbase.master;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.MetaTableAccessor;
 import org.apache.hadoop.hbase.TableExistsException;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.RegionInfo;
+import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -89,5 +92,42 @@ public class TestClusterRestart extends AbstractTestRestartCluster {
       }
       UTIL.waitTableAvailable(TABLE);
     }
+
+  }
+  @Test
+  public void testClusterPG() throws  Exception{
+    TableName tableName=TableName.valueOf("aaaa");
+    byte[]  family="user".getBytes();
+    byte[] qualifier="bb".getBytes();
+    UTIL.createTable(tableName,family);
+    Table tl=UTIL.getConnection().getTable(tableName);
+    for(int i=0;i<100;i++){
+       byte[] key= String.valueOf(i).getBytes();
+       Put p= new Put(key);
+       p.addColumn(family,qualifier,key);
+      tl.put(p);
+    }
+    // get
+    for(int i=0;i<100;i++){
+      byte[] key= String.valueOf(i).getBytes();
+      Get get=new Get(key);
+      Result r=tl.get(get);
+      ByteBuffer val=r.getValueAsByteBuffer(family,qualifier);
+      byte[] valByte=new byte[val.remaining()];
+             val.get(valByte);
+      System.out.println(String.format("result:key %s,value %s,len %s",new String(key),new String(valByte),valByte.length));
+    }
+
+
+  }
+  @Before
+  public void launchCluster() throws Exception{
+    UTIL.startMiniCluster(3);
+    UTIL.waitFor(60000, () -> UTIL.getMiniHBaseCluster().getMaster().isInitialized());
+  }
+
+  @After
+  public void stop() throws Exception{
+    UTIL.shutdownMiniCluster();
   }
 }
